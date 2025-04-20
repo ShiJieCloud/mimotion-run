@@ -153,10 +153,8 @@ class MiMotion():
 
         login_token, userid = self.login(user, password)
         if login_token == 0:
-            msg = [
-                {"name": "帐号信息", "value": f"{user[:4]}****{user[-4:]}"},
-                {"name": "修改信息", "value": f"登陆失败\n"},
-            ]
+            msg = f"| `{user[:4]}****{user[-4:]}` | `登陆失败`   |           |"
+            return msg
         else:
             try:
                 t = self.get_time()
@@ -175,19 +173,25 @@ class MiMotion():
                 # MiMotion(check_item=_check_item).run(data)
 
                 response = requests.post(url=url, data=data, headers=headers).json()
-                print(f"{response['message']}")
+                # print(f"{response['message']}")
+                # if response['message'] == "success":
+                #     msg = [
+                #         {"name": "帐号信息", "value": f"{user[:4]}****{user[-4:]}"},
+                #         {"name": "修改信息", "value": f"{response['message']}"},
+                #         {"name": "修改步数", "value": f"{step}\n"},
+                #     ]
+                # else:
+                #     msg = [
+                #         {"name": "帐号信息", "value": f"{user[:4]}****{user[-4:]}"},
+                #         {"name": "修改信息", "value": f"登陆失败\n"},
+                #     ]
+                # msg = "\n".join([f"{one.get('name')}: {one.get('value')}" for one in msg])
+
                 if response['message'] == "success":
-                    msg = [
-                        {"name": "帐号信息", "value": f"{user[:4]}****{user[-4:]}"},
-                        {"name": "修改信息", "value": f"{response['message']}"},
-                        {"name": "修改步数", "value": f"{step}\n"},
-                    ]
+                    msg = f"| `{user[:4]}****{user[-4:]}` | `success`    | `{step}`      |"
                 else:
-                    msg = [
-                        {"name": "帐号信息", "value": f"{user[:4]}****{user[-4:]}"},
-                        {"name": "修改信息", "value": f"登陆失败\n"},
-                    ]
-                msg = "\n".join([f"{one.get('name')}: {one.get('value')}" for one in msg])
+                    msg = f"| `{user[:4]}****{user[-4:]}` | `登陆失败`   |           |"
+
                 return msg
             except Exception as e:
                 error_traceback = traceback.format_exc()
@@ -200,15 +204,26 @@ if __name__ == "__main__":
         # datas = json.loads(f.read())
         datas = json.loads(os.environ["CONFIG"])
 
-        msg = ""
+        msg = [
+            "| **帐号信息**   | **修改信息** | **修改步数** |",
+            "|----------------|--------------|--------------|"
+        ]
 
         for i in range(len(datas.get("MIMOTION", []))):
             # print(i)
             _check_item = datas.get("MIMOTION", [])[i]
             # print(_check_item)
-            msg += MiMotion(check_item=_check_item).main()
+            msg.append(MiMotion(check_item=_check_item).main())
 
         print(msg)
+        result_msg = "\n".join(msg)
+
+        print(result_msg)
+
+        # 推送server酱
+        if datas.get("SCKEY"):
+            sckey = datas.get("SCKEY")
+            MiMotion(check_item=_check_item).push_wx(result_msg)
 
     except Exception as e:
         # 获取报错位置的详细信息
