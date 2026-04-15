@@ -170,7 +170,7 @@ class MiMotion():
         前4段步数在基准值 ±99 范围内随机，第5段在15100-16000内随机
         """
         try:
-            current_hour = datetime.datetime.now().hour
+            current_hour = (datetime.datetime.now().hour + 8) % 24
             
             if current_hour < 11:
                 base_step = 3200
