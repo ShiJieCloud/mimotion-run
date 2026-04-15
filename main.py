@@ -1,6 +1,6 @@
 # -*- coding: utf8 -*-
 import requests, time, datetime, re, sys, os, json, random, math, traceback
-global skey,sckey,base_url,req_url,corpid,corpsecret,agentid,touser,toparty,totag,open_get_weather,area,qweather
+global sckey
 
 class MiMotion():
     name = "小米运动"
@@ -13,19 +13,6 @@ class MiMotion():
             "app_name": "com.xiaomi.hm.health",
         }
 
-   #发送酷推
-    def push(self, title, content):
-        try:
-            url = "https://push.xuthus.cc/send/" + skey
-            data = title + "\n" + content
-            # 发送请求
-            res = requests.post(url=url, data=data.encode('utf-8')).text
-            # 输出发送结果
-            print(res)
-        except Exception as e:
-            error_traceback = traceback.format_exc()
-            print(error_traceback)
-
     # 推送server
     def push_wx(self,desp=""):
         try:
@@ -37,54 +24,6 @@ class MiMotion():
 
             response = requests.get(server_url, params=params).text
             print(response)
-        except Exception as e:
-            error_traceback = traceback.format_exc()
-            print(error_traceback)
-
-    # 推送telegram
-    def push_telegram(self,msg):
-        try:
-            print("\nTelegram 推送开始")
-            send_data = {"chat_id": tg_user_id, "text": title + '\n\n'+content, "disable_web_page_preview": "true"}
-            response = requests.post(
-                url=f'https://api.telegram.org/bot{tg_bot_token}/sendMessage', data=send_data)
-            print(response.json()['ok'])
-        except Exception as e:
-            error_traceback = traceback.format_exc()
-            print(error_traceback)
-
-    # 企业微信
-    def get_access_token(self):
-        try:
-            urls = base_url + 'corpid=' + corpid + '&corpsecret=' + corpsecret
-            resp = requests.get(urls).json()
-            access_token = resp['access_token']
-            return access_token
-        except Exception as e:
-            error_traceback = traceback.format_exc()
-            print(error_traceback)
-
-    def run(self,msg):
-        try:
-            data = {
-                "touser": touser,
-                "toparty": toparty,
-                "totag": totag,
-                "msgtype": "text",
-                "agentid": agentid,
-                "text": {
-                    "content": "【小米运动步数修改】\n" + msg
-                },
-                "safe": 0,
-                "enable_id_trans": 0,
-                "enable_duplicate_check": 0,
-                "duplicate_check_interval": 1800
-            }
-            data = json.dumps(data)
-            req_urls = req_url + self.get_access_token()
-            resp = requests.post(url=req_urls, data=data).text
-            print(resp)
-            return resp
         except Exception as e:
             error_traceback = traceback.format_exc()
             print(error_traceback)
@@ -223,42 +162,49 @@ class MiMotion():
             print("获取 token 失败")
             return 0, 0, 0
 
+    def calculate_step(self):
+        """
+        根据时间段自动计算步数（每天5段，最终约15100-16000步）
+        前4段步数在基准值 ±99 范围内随机，第5段在15100-16000内随机
+        """
+        try:
+            current_hour = datetime.datetime.now().hour
+            
+            if current_hour < 11:
+                base_step = 3200
+                time_period = "第1段(0-11点)"
+            elif current_hour < 13:
+                base_step = 6400
+                time_period = "第2段(11-13点)"
+            elif current_hour < 16:
+                base_step = 9600
+                time_period = "第3段(13-16点)"
+            elif current_hour < 19:
+                base_step = 12800
+                time_period = "第4段(16-19点)"
+            else:
+                base_step = random.randint(15100, 16000)
+                time_period = "第5段(19-24点)"
+            
+            if current_hour < 19:
+                step = str(base_step + random.randint(-99, 99))
+            else:
+                step = str(base_step)
+            print(f"[时间段模式] {time_period} 当前时间 {current_hour}点，提交步数: {step}步")
+            return step
+        except Exception as e:
+            print('[步数计算异常]:', e)
+            return str(random.randint(15100, 16000))
+
     def main(self):
         import time, random, math, traceback, requests, re
     
-        # ---------- 1. 获取步数比例 ----------
-        try:
-            user = str(self.check_item.get("user"))
-            password = str(self.check_item.get("password"))
-            hea = {'User-Agent': 'Mozilla/5.0'}
-            url = 'https://apps.game.qq.com/CommArticle/app/reg/gdate.php'  # 去空格
-            r = requests.get(url, headers=hea, timeout=10)
-            if r.status_code != 200:
-                print(f'[步数比例] 状态码={r.status_code} 响应={r.text}')
-                hour = 12  # 给个默认值
-            else:
-                reg = re.search(r'\d{4}-\d{2}-\d{2} (\d{2}):\d{2}:\d{2}', r.text)
-                hour = int(reg.group(1)) if reg else 12
-            min_ratio = int(hour) / 22
-            max_ratio = int(hour) / 21
-            step_ratio = random.uniform(min_ratio, max_ratio)
-        except Exception as e:
-            print('[步数比例] 异常:', e)
-            step_ratio = random.uniform(0.5, 0.9)
+        user = str(self.check_item.get("user"))
+        password = str(self.check_item.get("password"))
     
-        # ---------- 2. 计算步数范围 ----------
-        try:
-            min_step = math.ceil(int(self.check_item.get("min_step", 10000)) * step_ratio)
-            max_step = math.ceil(int(self.check_item.get("max_step", 19999)) * step_ratio)
-            if min_step > max_step:
-                min_step, max_step = max_step, min_step
-        except Exception as e:
-            print(f'步数范围初始化失败: {e}，使用默认值')
-            min_step, max_step = 10000, 19999
+        step = self.calculate_step()
     
-        step = str(random.randint(min_step, max_step))
-    
-        # ---------- 3. 登录 ----------
+        # ---------- 2. 登录 ----------
         login_token, userid, app_token = self.login(user, password)
         if 0 in (login_token, userid, app_token):
             msg = f"帐号信息: {user[:4]}****{user[-4:]}\n修改信息: 登录失败\n"
@@ -296,64 +242,30 @@ class MiMotion():
             msg = f"【异常】账号 {user[:4]}****{user[-4:]} 提交失败：{e}\n"
     
         print(msg)
+
         return msg
 
 if __name__ == "__main__":
     try:
-        #with open(os.path.join(os.path.dirname(os.path.dirname(__file__)), "/root/config.json"), "r", encoding="utf-8") as f:
-            #datas = json.loads(f.read())
-        datas = json.loads(os.environ["CONFIG"])
-        # 开启根据地区天气情况降低步数（默认关闭）
-        if datas.get("OPEN_GET_WEATHER"):
-            open_get_weather = datas.get("OPEN_GET_WEATHER")
-        else:
-            open_get_weather = "False"
-        # 设置获取天气的地区（上面开启后必填）如：area = "宁波"
-        if datas.get("AREA"):
-            area = datas.get("AREA")
-        else:
-            area = "NO"
-        # 和风天气 Private KEY
-        if datas.get("OPEN_GET_WEATHER"):
-            qweather = datas.get("OPEN_GET_WEATHER")
-        else:
-            qweather = "False"
+        with open(os.path.join(os.path.dirname(__file__), "config.json"), "r", encoding="utf-8") as f:
+            datas = json.loads(f.read())
+
+        print(datas)
+
+        # datas = json.loads(os.environ["CONFIG"])
+
         msg = ""
         for i in range(len(datas.get("MIMOTION", []))):
-            #print(i)
+            print(i)
             _check_item = datas.get("MIMOTION", [])[i]
-            #print(_check_item)
+            print(_check_item)
             msg += MiMotion(check_item=_check_item).main()
-            time.sleep(10)
-        #print(msg)
-        # 酷推skey和server酱sckey和企业微信设置，只用填一个其它留空即可
-        if datas.get("SKEY"):
-            skey = datas.get("SKEY")
-            MiMotion(check_item=_check_item).push('【小米运动步数修改】', msg)
-        # 推送server酱
-        if datas.get("SCKEY"):
-            sckey = datas.get("SCKEY")
-            MiMotion(check_item=_check_item).push_wx(msg)
-        # 推送telegram
-        if datas.get("TG_BOT_TOKEN") or datas.get("TG_USER_ID") :
-            tg_bot_token = datas.get("TG_BOT_TOKEN")
-            tg_user_id = datas.get("TG_USER_ID")
-            MiMotion(check_item=_check_item).push_telegram(msg)
 
-        # 企业微信推送
-        # 是否开启企业微信推送false关闭true开启，默认关闭，开启后请填写设置并将上面两个都留空
-        if datas.get("POSITION"):
-            base_url = 'https://qyapi.weixin.qq.com/cgi-bin/gettoken?'
-            req_url = 'https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token='
-            corpid = datas.get("CORPID")  # 企业ID， 登陆企业微信，在我的企业-->企业信息里查看
-            corpsecret = datas.get("CORPSECRET")  # 自建应用，每个自建应用里都有单独的secret
-            agentid = datas.get("AGENTID")  # 填写你的应用ID，不加引号，是个整型常数,就是AgentId
-            touser = datas.get("TOUSER")  # 指定接收消息的成员，成员ID列表（多个接收者用‘|’分隔，最多支持1000个）。特殊情况：指定为”@all”，则向该企业应用的全部成员发送
-            toparty = datas.get("TOPARTY")  # 指定接收消息的部门，部门ID列表，多个接收者用‘|’分隔，最多支持100个。当touser为”@all”时忽略本参数
-            totag = datas.get("TOTAG")  # 指定接收消息的标签，标签ID列表，多个接收者用‘|’分隔，最多支持100个。当touser为”@all”时忽略本参数
-            MiMotion(check_item=_check_item).run(msg)
-        #推送CONFIG配置
-        #MiMotion(check_item=_check_item).run(os.environ["CONFIG"])
+            # 推送server酱
+            MiMotion(check_item=_check_item).push_wx(msg)
+
+            time.sleep(10)
+
     except Exception as e:
         # 获取报错位置的详细信息
         error_traceback = traceback.format_exc()
