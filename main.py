@@ -5,18 +5,20 @@ global sckey
 class MiMotion():
     name = "小米运动"
 
-    def __init__(self, check_item):
+    def __init__(self, check_item, sckey=""):
         self.check_item = check_item
         self.headers = {
             "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
             "User-Agent": "MiFit/6.12.0 (MCE16; Android 16; Density/1.5)",
             "app_name": "com.xiaomi.hm.health",
         }
+        self.sckey = sckey
+
 
     # 推送server
     def push_wx(self,desp=""):
         try:
-            server_url = f"https://sc.ftqq.com/{sckey}.send"
+            server_url = f"https://sc.ftqq.com/{self.sckey}.send"
             params = {
                 "text": '【小米运动步数修改】',
                 "desp": desp
@@ -247,12 +249,12 @@ class MiMotion():
 
 if __name__ == "__main__":
     try:
-        with open(os.path.join(os.path.dirname(__file__), "config.json"), "r", encoding="utf-8") as f:
-            datas = json.loads(f.read())
+        # with open(os.path.join(os.path.dirname(__file__), "config.json"), "r", encoding="utf-8") as f:
+        #     datas = json.loads(f.read())
 
-        print(datas)
+        # print(datas)
 
-        # datas = json.loads(os.environ["CONFIG"])
+        datas = json.loads(os.environ["CONFIG"])
 
         msg = ""
         for i in range(len(datas.get("MIMOTION", []))):
@@ -262,7 +264,8 @@ if __name__ == "__main__":
             msg += MiMotion(check_item=_check_item).main()
 
             # 推送server酱
-            MiMotion(check_item=_check_item).push_wx(msg)
+            if datas.get("SCKEY"):
+                MiMotion(check_item=_check_item, sckey=datas.get("SCKEY")).push_wx(msg)
 
             time.sleep(10)
 
